@@ -1,0 +1,491 @@
+<!--[if IE]>
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">
+<![endif]-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en" dir="ltr">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>U-NAS</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=8" />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/apps/upsnap/css/index.css?v=6.0.1&"
+    />
+    <script>
+      window.top.UNAS.SetAppState('UpSnap', 'active')
+    </script>
+    <script language="JavaScript" type="text/javascript">
+      jQuery.noConflict()
+      ;(function () {
+        getConfig()
+        jQuery('#upsnap_enable').click(function () {
+          if (jQuery('#upsnap_enable').prop('checked') == false) {
+            jQuery("[name='upsnap_input']").attr('disabled', true)
+            jQuery("[class='unas_select']").attr('disabled', true)
+            if (jQuery('#upsnap_enable').attr('oldvalue') == 'enable')
+              jQuery('#upsnap_apply').attr('class', 'unas_button')
+          }
+          if (jQuery('#upsnap_enable').prop('checked') == true) {
+            jQuery("[name='upsnap_input']").attr('disabled', false)
+            jQuery("[class='unas_select']").attr('disabled', false)
+            jQuery('#upsnap_enable').attr('disabled', false)
+          }
+        })
+        jQuery('#upsnap_port').keyup(upsnapCheckPortFunc)
+      })()
+
+      function getConfig() {
+        jQuery('#upsnap_manager_waiting_content').attr('style', 'display:block')
+        jQuery('#upsnap_manager_waiting_logo').attr('style', 'display:block')
+        jQuery.ajax({
+          url: '/apps/upsnap/includes/services.php',
+          type: 'POST',
+          async: true,
+          contentType: 'application/json',
+          data: JSON.stringify({ token: UToken, action: 'getConfig' }),
+          dataType: 'json',
+          timeout: 20000,
+          success: function (data) {
+            if (data.pass == 'exit') {
+              parent.location.assign('/desktop/')
+            } else {
+              if (data.enable == true) {
+                jQuery('#upsnap_enable').prop('checked', true)
+                jQuery('#upsnap_enable').attr('oldvalue', 'enable')
+              } else {
+                jQuery("[name='upsnap_input']").attr('disabled', true)
+                jQuery("[class='unas_select']").attr('disabled', true)
+                jQuery('#upsnap_enable').prop('checked', false)
+                jQuery('#upsnap_enable').attr('oldvalue', 'disable')
+              }
+
+              if (data.enable) {
+                jQuery('#upsnap_manage').attr(
+                  'url',
+                  'http://' + window.location.hostname + ':' + data.port
+                )
+                jQuery('#upsnap_manage').attr(
+                  'style',
+                  'width: 120px; display:inline-block;'
+                )
+              } else {
+                jQuery('#upsnap_manage').attr('style', 'display:none;')
+              }
+
+              var shareFolders = data.shareFolders
+              var selectFolder = data.configDir
+              if (
+                data.homesExtConfigFolder &&
+                data.homesExtConfigFolder !== ''
+              ) {
+                if (shareFolders) {
+                  shareFolders.unshift({
+                    path: data.homesExtConfigFolder,
+                  })
+                } else {
+                  shareFolders = [
+                    {
+                      path: data.homesExtConfigFolder,
+                    },
+                  ]
+                }
+                if (
+                  selectFolder === null ||
+                  selectFolder === undefined ||
+                  selectFolder === ''
+                ) {
+                  selectFolder = data.homesExtConfigFolder
+                }
+              }
+              var shareFolderAvail = share_folder_list(
+                'upsnap_config_dir',
+                shareFolders,
+                selectFolder
+              )
+              // jQuery('#upsnap_config_dir').val(data.configDir)
+              jQuery('#upsnap_port').val(data.port)
+
+              if (shareFolderAvail) {
+                jQuery('#upsnap_apply').attr('class', 'unas_button')
+              } else {
+                jQuery('#upsnap_apply').attr('class', 'unas_button_disabled')
+              }
+            }
+            jQuery('#upsnap_manager_waiting_content').attr(
+              'style',
+              'display:none'
+            )
+            jQuery('#upsnap_manager_waiting_logo').attr('style', 'display:none')
+          },
+          error: function (XMLHttpRequest, textStatus, errorThrown) {
+            alert(textStatus)
+            jQuery('#upsnap_manager_waiting_content').attr(
+              'style',
+              'display:none'
+            )
+            jQuery('#upsnap_manager_waiting_logo').attr('style', 'display:none')
+          },
+        })
+      }
+
+      function upsnapCheckPortFunc() {
+        if (upsnapCheckPort())
+          jQuery('#upsnap_apply').attr('class', 'unas_button')
+        else jQuery('#upsnap_apply').attr('class', 'unas_button_disabled')
+      }
+
+      function upsnapCheckPort() {
+        var portState = false
+        var port = parseInt(jQuery.trim(jQuery('#upsnap_port').val()), 10)
+        if (isNaN(port)) {
+          jQuery('#upsnap_port').val('')
+        } else {
+          jQuery('#upsnap_port').val(port)
+        }
+        if (usedPort === port) {
+          // 端口可正在用的端口是一样的，不需要验证
+          jQuery('#upsnap_port_warning').attr('class', 'input_warning')
+          jQuery('#upsnap_port_warning').attr('title', '')
+          jQuery('#upsnap_port_warning').html('')
+          portState = true
+        } else if (port > 65535 || port < 1) {
+          jQuery('#upsnap_port_warning').attr('class', 'input_warning_info')
+          jQuery('#upsnap_port_warning').attr(
+            'title',
+            UNAS._('Port should between 1 and 65535')
+          )
+          jQuery('#upsnap_port_warning').html(
+            '* ' + UNAS._('Port should between 1 and 65535')
+          )
+        } else {
+          jQuery.ajax({
+            url: '/apps/upsnap/includes/services.php',
+            type: 'POST',
+            async: false,
+            contentType: 'application/json',
+            data: JSON.stringify({
+              token: UToken,
+              port: port,
+              action: 'checkport',
+            }),
+            timeout: 20000,
+            dataType: 'json',
+            success: function (data) {
+              if (data.err === 1) {
+                jQuery('#upsnap_port_warning').attr(
+                  'class',
+                  'input_warning_info'
+                )
+                jQuery('#upsnap_port_warning').attr('title', UNAS._(data.msg))
+                jQuery('#upsnap_port_warning').html('* ' + UNAS._(data.msg))
+              } else {
+                jQuery('#upsnap_port_warning').attr('class', 'input_warning')
+                jQuery('#upsnap_port_warning').attr('title', '')
+                jQuery('#upsnap_port_warning').html('')
+                portState = true
+              }
+            },
+            error: function (XMLHttpRequest, textStatus, errorThrown) {
+              alert(textStatus)
+            },
+          })
+        }
+        return portState
+      }
+
+      function isNumeric(strval) {
+        var c
+        for (var i = 0; i < strval.length; i++) {
+          c = strval.charAt(i)
+          if (c < '0' || c > '9') {
+            return false
+          }
+        }
+        return true
+      }
+
+      function submit() {
+        jQuery('#upsnap_info').removeClass('error-info')
+        jQuery('#upsnap_info').removeClass('success-info')
+        jQuery('#upsnap_info').html('')
+        if (jQuery('#upsnap_apply').hasClass('unas_button_disabled')) {
+          return false
+        }
+        jQuery('#upsnap_manager_waiting_content').attr('style', 'display:block')
+        jQuery('#upsnap_manager_waiting_logo').attr('style', 'display:block')
+
+        var enable = jQuery('#upsnap_enable').prop('checked'),
+          configDir = jQuery('#upsnap_config_dir').val(),
+          port = jQuery('#upsnap_port').val()
+        var params = {
+          token: UToken,
+          enable: enable,
+          configDir: configDir,
+          port: port,
+          action: 'manage',
+        }
+        jQuery.ajax({
+          url: '/apps/upsnap/includes/services.php',
+          type: 'POST',
+          async: true,
+          contentType: 'application/json',
+          data: JSON.stringify(params),
+          timeout: 20000,
+          dataType: 'json',
+          success: function (data) {
+            if (data.err === 0) {
+              jQuery('#upsnap_info').removeClass('error-info')
+              jQuery('#upsnap_info').addClass('success-info')
+              jQuery('#upsnap_info').html(UNAS._('Operation successful'))
+            } else {
+              jQuery('#upsnap_info').removeClass('success-info')
+              jQuery('#upsnap_info').addClass('error-info')
+              jQuery('#upsnap_info').html(UNAS._(data.msg))
+            }
+            jQuery('#upsnap_manager_waiting_content').attr(
+              'style',
+              'display:none'
+            )
+            jQuery('#upsnap_manager_waiting_logo').attr('style', 'display:none')
+            getConfig()
+          },
+          error: function (XMLHttpRequest, textStatus, errorThrown) {
+            alert(textStatus)
+            jQuery('#upsnap_manager_waiting_content').attr(
+              'style',
+              'display:none'
+            )
+            jQuery('#upsnap_manager_waiting_logo').attr('style', 'display:none')
+          },
+        })
+      }
+
+      function openUpSnap() {
+        window.open(jQuery('#upsnap_manage').attr('url'), '_blank')
+      }
+
+      // 功能函数，缩略太长的字符串
+      function trunc(str, len) {
+        if (str == null) return ''
+        var str_length = 0
+        var str_cut = new String()
+        for (var i = 0; i < str.length; i++) {
+          a = str.charAt(i)
+          str_length++
+          if (escape(a).length > 4) {
+            str_length++
+          }
+          str_cut = str_cut.concat(a)
+          if (str_length > len) {
+            str_cut = str_cut.concat('...')
+            return str_cut
+          }
+        }
+        if (str_length <= len) {
+          return str
+        }
+      }
+
+      function share_folder_list(elementId, folders, folder_selected) {
+        var folder_opts = ''
+        var selected = false
+        var shareFolderAvail = false
+        if (folders === null || folders === undefined || folders.length === 0) {
+          // 没有共享文件夹可用
+          shareFolderAvail = false
+          folder_opts =
+            '<option value="">' +
+            UNAS._(
+              '##$@upsnap@$##Enable Home Dir or create a SHARE FOLDER before select##$@upsnap@$##'
+            ) +
+            '</option>'
+        } else {
+          shareFolderAvail = true
+          for (var i = 0; i < folders.length; i++) {
+            var folderPath = folders[i].path
+            folder_opts +=
+              '<option value="' +
+              folderPath +
+              '"' +
+              ' title="' +
+              folderPath +
+              '"'
+            if (folderPath == folder_selected) {
+              folder_opts += ' selected="selected"'
+              selected = true
+            }
+            folder_opts += '>' + trunc(folderPath, 30) + '</option>'
+          }
+        }
+        jQuery('#' + elementId).html(folder_opts)
+        if (shareFolderAvail && !selected) {
+          jQuery('#' + elementId + ' option:first').prop('selected', 'selected')
+        }
+        return shareFolderAvail
+      }
+    </script>
+  </head>
+  <body>
+    <div id="upsnap" class="upsnap_manager">
+      <div
+        id="upsnap_manager_waiting_content"
+        class="unas_loading_modal"
+        style="display: none"
+      ></div>
+      <div
+        id="upsnap_manager_waiting_logo"
+        class="unas_loading"
+        style="display: none"
+      ></div>
+      <div class="unas_title">
+        <div
+          id="poweroptions_manager_immediately_tab"
+          class="unas_tab_sel"
+          poweroptionsitemtableid="poweroptions_manager_immediately_page"
+        >
+          <span>##$@upsnap@$##UpSnap##$@upsnap@$##</span>
+        </div>
+      </div>
+      <div class="unas_content">
+        <div
+          id="jv-unas_content_left"
+          class="unas_content_left"
+          style="
+            position: absolute;
+            width: calc(100% - 150px);
+            left: 0;
+            bottom: 60px;
+            top: 60px;
+          "
+        >
+          <div id="upsnap_info" class="info-div"></div>
+          <div class="unas_items upsnap-item-li">
+            <ul>
+              <li class="unas_item_li" style="margin-bottom: 10px">
+                <span>
+                  <div class="unas_checkbox">
+                    <input type="checkbox" id="upsnap_enable" oldvalue="" />
+                    <label for="upsnap_enable"></label>
+                  </div>
+                </span>
+                <span>##$@upsnap@$##Enable UpSnap Service##$@upsnap@$##</span>
+              </li>
+              <li class="unas_item_li" style="margin-bottom: 10px">
+                <span class="span_left" style="margin-left: 40px"
+                  >##$@upsnap@$##Configuration Directory:##$@upsnap@$##</span
+                >
+                <span>
+                  <select
+                    class="unas_select"
+                    id="upsnap_config_dir"
+                    name="upsnap_config_dir"
+                  ></select>
+                </span>
+                <!-- <span
+                  ><input
+                    type="text"
+                    id="upsnap_config_dir"
+                    name="upsnap_input"
+                    class="unas_input" /></span
+                ><label class="" id="upsnap_config_dir_warning" title=""></label> -->
+              </li>
+              <li class="unas_item_li" style="margin-bottom: 10px">
+                <span class="span_left" style="margin-left: 40px"
+                  >##$@upsnap@$##Port:##$@upsnap@$##</span
+                ><span
+                  ><input
+                    type="text"
+                    id="upsnap_port"
+                    name="upsnap_input"
+                    class="unas_input" /></span
+                ><label class="" id="upsnap_port_warning" title=""></label>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="unas_content_right">
+          <span class="upsnap_page_logo"></span>
+          <div class="project-addr">
+            <a href="https://github.com/seriousm4x/UpSnap" target="_blank"
+              >##$@upsnap@$##UpSnap Project##$@upsnap@$##</a
+            >
+          </div>
+          <div class="project-addr">
+            <a
+              href="https://github.com/UNS-Third-Party-Applications/upsnap"
+              target="_blank"
+              >##$@upsnap@$##Current Project##$@upsnap@$##</a
+            >
+          </div>
+        </div>
+      </div>
+      <div class="unas_footer">
+        <a
+          id="upsnap_main_button"
+          target="_blank"
+          style="
+            width: 72px;
+            height: 32px;
+            display: inline-block;
+            margin-right: 10px;
+          "
+        >
+          <button
+            onClick="submit()"
+            class="unas_button_disabled"
+            id="upsnap_apply"
+          >
+            ##$@upsnap@$##Apply##$@upsnap@$##
+          </button>
+        </a>
+        <button
+          onClick="openUpSnap()"
+          class="unas_button"
+          id="upsnap_manage"
+          style="display: none"
+        >
+          ##$@upsnap@$##Manage UpSnap##$@upsnap@$##
+        </button>
+      </div>
+    </div>
+    <script type="text/javascript">
+      ;(function () {
+        var rt = document.getElementById('upsnap')
+        var pageTranslators = window.top.UNAS.CreateNodesTranslators(
+          rt.parentNode
+        )
+        var OnChangeLanguage = function (e) {
+          for (var i = 0; i < pageTranslators.length; i++) {
+            var node = pageTranslators[i].node
+            var p = pageTranslators[i].translateProperty
+            node[p] = window.top.UNAS._(pageTranslators[i].originalText)
+          }
+          if (
+            jQuery('#upsnap_port_warning').attr('class') == 'input_warning_info'
+          ) {
+            upsnapCheckPort()
+          }
+        }
+        OnChangeLanguage()
+        window.top.UNAS.Event.addEvent('ChangeLanguage', OnChangeLanguage)
+        window.addEventListener(
+          'unload',
+          function (e) {
+            window.top.UNAS.Event.removeEvent(
+              'ChangeLanguage',
+              OnChangeLanguage
+            )
+            window.top.UNAS.SetAppState('UpSnap', 'inactive')
+          },
+          false
+        )
+      })()
+
+      jQuery('#jv-unas_content_left').mCustomScrollbar({
+        autoHideScrollbar: true,
+        theme: 'minimal-dark',
+      })
+    </script>
+  </body>
+</html>
